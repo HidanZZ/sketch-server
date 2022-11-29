@@ -22,7 +22,6 @@ services:
       - "cockroachdb:db"
     depends_on:
       - cockroachdb
-      - prometheus
     volumes:
       - ./data:/nakama/data
     expose:
