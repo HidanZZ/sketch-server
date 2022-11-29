@@ -42,27 +42,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  prometheus:
-    image: prom/prometheus
-    entrypoint: /bin/sh -c
-    command: |
-      'sh -s <<EOF
-        cat > ./prometheus.yml <<EON
-      global:
-        scrape_interval:     15s
-        evaluation_interval: 15s
-      scrape_configs:
-        - job_name: prometheus
-          static_configs:
-          - targets: ['localhost:9090']
-        - job_name: nakama
-          metrics_path: /
-          static_configs:
-          - targets: ['nakama:9100']
-      EON
-      prometheus --config.file=./prometheus.yml
-      EOF'      
+  nginx:
+    image: jonasal/nginx-certbot:latest
+    environment:
+      CERTBOT_EMAIL: "aitdaoudelhoussein@gmail.com"
     ports:
-      - '9090:9090'
+      - "80:80"
+      - "443:443"
+      - "7349:7349"
+      - "7350:7350"
+      - "7351:7351"
+    volumes:
+      - nginx_secrets:/etc/letsencrypt
+      - ./nginx_conf.d:/etc/nginx/user_conf.d
+    links:
+      - nakama
+    depends_on:
+      - nakama
+
 volumes:
-  data:
+  nginx_secrets: {}
