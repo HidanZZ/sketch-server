@@ -345,6 +345,12 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         content: "\"".concat(state.selectedWord, "\""),
         color: '#84CC16'
       };
+      var tmpDrawer = state.drawer;
+      if (tmpDrawer) {
+        var tmpPr = state.presences[tmpDrawer.userId];
+        // give points to drawer based on guessed users e.g 400 points if all users guessed the word and 0 if no one guessed the word
+        if (tmpPr) tmpPr.points += Math.floor(400 * (Object.keys(state.guessedUsers).length / (connectedPlayers(state) - 1)));
+      }
       dispatcher.broadcastMessage(OpCode.MESSAGE, JSON.stringify(message));
       state.isDrawing = false;
       if (state.drawers.length == connectedPlayers(state)) {
@@ -423,19 +429,8 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         if (chatmesage.content.toLowerCase() == state.selectedWord.toLowerCase()) {
           if (state.isDrawing && messageSender.userId !== ((_b = state.drawer) === null || _b === void 0 ? void 0 : _b.userId) && !Object.keys(state.guessedUsers).includes(messageSender.userId)) {
             var points = 0;
-            if (Object.keys(state.guessedUsers).length === 0) {
-              points = 400;
-            } else if (Object.keys(state.guessedUsers).length === 1) {
-              points = 350;
-            } else if (Object.keys(state.guessedUsers).length === 2) {
-              points = 300;
-            } else if (Object.keys(state.guessedUsers).length === 3) {
-              points = 250;
-            } else if (Object.keys(state.guessedUsers).length === 4) {
-              points = 200;
-            } else if (Object.keys(state.guessedUsers).length === 5) {
-              points = 150;
-            }
+            // add points based on how many guessed users e.g. 400 points for 1 user, 100 points for 6 users etc.
+            points = Math.floor(600 / (Object.keys(state.guessedUsers).length + 1));
             var us = state.presences[messageSender.userId];
             if (us) us.points += points;
             state.guessedUsers[messageSender.userId] = us;
@@ -452,9 +447,11 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 color: '#84CC16'
               }));
               state.isDrawing = false;
-              logger.info('is length equal to connected players: %s.', state.drawers.length === connectedPlayers(state));
-              logger.info('drawer players: %s.', state.drawers.length);
-              logger.info('connected players: %s.', connectedPlayers(state));
+              var tmpDrawer = state.drawer;
+              if (tmpDrawer) {
+                var tmpPr = state.presences[tmpDrawer.userId];
+                if (tmpPr) tmpPr.points += 400;
+              }
               if (state.drawers.length === connectedPlayers(state)) {
                 if (state.rounds === state.currentRound) {
                   state.playing = false;
@@ -501,6 +498,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
       case OpCode.START_TURN:
         chooseDrawer(state, logger);
         state.words = getWords(3);
+        dispatcher.broadcastMessage(OpCode.CLEAR, JSON.stringify({}));
         dispatcher.broadcastMessage(OpCode.SELECTWORD, JSON.stringify({
           drawer: state.drawer,
           words: state.words,
