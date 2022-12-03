@@ -72,7 +72,8 @@ var matchInit = function (ctx, logger, nk, params) {
   var open = !!params.open;
   var label = {
     open: open ? 1 : 0,
-    maxPlayers: maxPlayers
+    maxPlayers: maxPlayers,
+    name: params.name
   };
   var state = {
     label: label,
@@ -184,7 +185,8 @@ var matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
     rounds: state.rounds,
     timePerTurn: state.timePerTurn,
     maxPlayers: state.maxPlayers,
-    open: state.label.open === 1
+    open: state.label.open === 1,
+    name: state.label.name
   };
   // Send a message to the user that just joined.
   dispatcher.broadcastMessage(OpCode.CHANGESETTINGS, JSON.stringify(settings));
@@ -215,7 +217,7 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
     state.presences[presence.userId] = null;
     if (presence.userId === ((_a = state.drawer) === null || _a === void 0 ? void 0 : _a.userId)) {
       state.isDrawing = false;
-      chooseDrawer(state);
+      chooseDrawer(state, logger);
       if (state.drawers.length === connectedPlayers(state)) {
         if (state.currentRound === state.rounds) {
           state.playing = false;
@@ -234,14 +236,14 @@ var matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) 
         dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
           isGameOver: state.isGameOver,
           guessedUsers: state.guessedUsers,
-          users: Object.values(state.presences)
+          users: Object.values(getPresences(state))
         }));
       } else {
         state.newRound = true;
         dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
           isGameOver: state.isGameOver,
           guessedUsers: state.guessedUsers,
-          users: Object.values(state.presences)
+          users: Object.values(getPresences(state))
         }));
       }
     }
@@ -365,14 +367,14 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
           isGameOver: state.isGameOver,
           guessedUsers: state.guessedUsers,
-          users: Object.values(state.presences)
+          users: Object.values(getPresences(state))
         }));
       } else {
         state.newRound = false;
         dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
           isGameOver: state.isGameOver,
           guessedUsers: state.guessedUsers,
-          users: Object.values(state.presences)
+          users: Object.values(getPresences(state))
         }));
       }
       state.guessedUsers = {};
@@ -396,7 +398,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         //start game
         state.playing = true;
         //set drawer to random player from state.presences not null and not in state.drawers
-        chooseDrawer(state);
+        chooseDrawer(state, logger);
         state.words = getWords(3);
         dispatcher.broadcastMessage(OpCode.SELECTWORD, JSON.stringify({
           drawer: state.drawer,
@@ -474,14 +476,14 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
                 dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
                   isGameOver: state.isGameOver,
                   guessedUsers: state.guessedUsers,
-                  users: Object.values(state.presences)
+                  users: Object.values(getPresences(state))
                 }));
               } else {
                 state.newRound = false;
                 dispatcher.broadcastMessage(OpCode.ENDTURN, JSON.stringify({
                   isGameOver: state.isGameOver,
                   guessedUsers: state.guessedUsers,
-                  users: Object.values(state.presences)
+                  users: Object.values(getPresences(state))
                 }));
               }
               state.currentTime = state.timePerTurn;
@@ -497,7 +499,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         }
         break;
       case OpCode.START_TURN:
-        chooseDrawer(state);
+        chooseDrawer(state, logger);
         state.words = getWords(3);
         dispatcher.broadcastMessage(OpCode.SELECTWORD, JSON.stringify({
           drawer: state.drawer,
@@ -569,6 +571,7 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
         state.maxPlayers = msg2.maxPlayers;
         state.label.open = msg2.open ? 1 : 0;
         state.label.maxPlayers = msg2.maxPlayers;
+        state.label.name = msg2.name;
         var labelJSON = JSON.stringify(state.label);
         dispatcher.matchLabelUpdate(labelJSON);
         dispatcher.broadcastMessage(message.opCode, JSON.stringify(msg2));
@@ -624,19 +627,33 @@ var matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
     state: state
   };
 };
-function chooseDrawer(state) {
+function chooseDrawer(state, logger) {
+  var _a;
   var players = Object.keys(getPresences(state));
-  var drawers = Object.keys(state.drawers);
-  // Choose a random player to be the drawer.
-  var drawer = players[Math.floor(Math.random() * players.length)];
-  // If the drawer is has already drawn, choose a new one.
-  while (drawers.includes(drawer)) {
-    drawer = players[Math.floor(Math.random() * players.length)];
+  var drawers = state.drawers;
+  //remove drawers from players
+  for (var i = 0; i < drawers.length; i++) {
+    var uid = (_a = drawers[i]) === null || _a === void 0 ? void 0 : _a.userId;
+    if (uid != undefined) {
+      {
+        var index = players.indexOf(uid);
+        if (index > -1) {
+          players.splice(index, 1);
+        }
+      }
+    }
   }
-  var dr = state.presences[drawer];
-  if (dr != null) {
-    state.drawers.push(dr.user);
-    state.drawer = dr.user;
+  logger.info('players are %s', players);
+  logger.info('drawers are %s', drawers);
+  // Choose a random player to be the drawer.
+  if (players.length != 0) {
+    var drawer = players[0];
+    var dr = state.presences[drawer];
+    logger.info('drawer is %s', dr);
+    if (dr != null) {
+      state.drawers.push(dr.user);
+      state.drawer = dr.user;
+    }
   }
 }
 function getWords(count) {

@@ -10,3 +10,6 @@ console:
   port: 7351
   username: 'admin'
   password: 'password'
+
+session:
+  token_expiry_sec: 86400
