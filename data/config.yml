@@ -13,3 +13,7 @@ console:
 
 session:
   token_expiry_sec: 86400
+
+socket:
+  max_message_size_bytes: 1048576
+  max_request_size_bytes: 1048576
